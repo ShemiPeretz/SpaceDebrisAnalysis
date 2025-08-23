@@ -1,68 +1,122 @@
+import os
 import requests
-import json
 import pandas as pd
+from typing import Optional, Dict, Any, List
 
-# Your Space-Track credentials
-USERNAME = 'pershi@post.bgu.ac.il'
-PASSWORD = 'asdfghjkL!1234_5678'
+"""
+Reusable Space-Track API client.
+- Reads SPACE_TRACK_USER and SPACE_TRACK_PASS from environment variables.
+- Provides functions to fetch SATCAT, latest TLEs, decay/reentry data, and public CDMs.
+- Returns pandas DataFrames. No side effects on import.
+"""
 
-# Base URL and endpoints
 BASE_URL = 'https://www.space-track.org'
 LOGIN_URL = f'{BASE_URL}/ajaxauth/login'
-
-# Headers
 HEADERS = {'Content-Type': 'application/x-www-form-urlencoded'}
 
-# Login session
-session = requests.Session()
-login_data = {
-    'identity': USERNAME,
-    'password': PASSWORD
-}
-resp = session.post(LOGIN_URL, headers=HEADERS, data=login_data)
+class SpaceTrackAuthError(Exception):
+    pass
 
-if resp.status_code != 200:
-    raise Exception("Login failed. Check credentials.")
+class SpaceTrackClient:
+    def __init__(self, username: Optional[str] = None, password: Optional[str] = None):
+        self.username = username or os.getenv('SPACE_TRACK_USER')
+        self.password = password or os.getenv('SPACE_TRACK_PASS')
+        if not self.username or not self.password:
+            raise SpaceTrackAuthError('Missing Space-Track credentials. Set SPACE_TRACK_USER and SPACE_TRACK_PASS.')
+        self.session = requests.Session()
+        self._login()
 
-print("✅ Logged in successfully.")
+    def _login(self) -> None:
+        resp = self.session.post(LOGIN_URL, headers=HEADERS, data={'identity': self.username, 'password': self.password})
+        if resp.status_code != 200 or 'You must be logged in' in resp.text:
+            raise SpaceTrackAuthError('Login failed. Check SPACE_TRACK_USER/SPACE_TRACK_PASS.')
 
-test_url = "https://www.space-track.org/basicspacedata/query/class/satcat/limit/1/format/json"
-resp = session.get(test_url)
+    def close(self) -> None:
+        try:
+            self.session.close()
+        except Exception:
+            pass
 
-if resp.status_code == 200:
-    print("✅ Authenticated query worked. Sample result:")
-    print(resp.json()[0])
-else:
-    print("❌ Query failed:", resp.status_code, resp.text)
+    def _query(self, path: str) -> requests.Response:
+        url = f"{BASE_URL}{path}"
+        resp = self.session.get(url)
+        resp.raise_for_status()
+        return resp
 
-# # --- Fetch TLEs (active objects in last 7 days) ---
-# tle_url = f"{BASE_URL}/basicspacedata/query/class/tle_latest/ORDINAL/1/NORAD_CAT_ID/>0/format/json"
-# tle_resp = session.get(tle_url)
-#
-# print(tle_resp.status_code)
-# print(tle_resp.text)  # See what's coming back
-#
-# tle_data = tle_resp.json()
-# # Example for TLEs
-# if tle_data:
-#     pd.DataFrame(tle_data).to_csv("tle_latest.csv", index=False)
-#     print(f"📦 TLE data saved. {len(tle_data)} records.")
-# else:
-#     print("⚠️ No TLE data returned.")
-#
-# # --- Fetch SATCAT metadata ---
-# satcat_url = f"{BASE_URL}/basicspacedata/query/class/satcat/format/json"
-# satcat_resp = session.get(satcat_url)
-# satcat_data = satcat_resp.json()
-# pd.DataFrame(satcat_data).to_csv("satcat.csv", index=False)
-# print(f"📦 SATCAT data saved. {len(satcat_data)} records.")
-#
-# # --- Fetch Decay/Reentry data (last 5 years) ---
-# decay_url = f"{BASE_URL}/basicspacedata/query/class/decay/EPOCH/>now-5%20years/format/json"
-# decay_resp = session.get(decay_url)
-# decay_data = decay_resp.json()
-# pd.DataFrame(decay_data).to_csv("decay_data.csv", index=False)
-# print(f"📦 Decay data saved. {len(decay_data)} records.")
+    # Public methods
+    def fetch_satcat(self, where: Optional[str] = None, limit: Optional[int] = None) -> pd.DataFrame:
+        parts = ["/basicspacedata/query/class/satcat"]
+        if where:
+            parts.append(f"{where}")
+        if limit is not None:
+            parts.append(f"limit/{int(limit)}")
+        parts.append("format/json")
+        path = "/".join(parts)
+        data = self._query(path).json()
+        return pd.DataFrame(data)
 
-# Optional: close session
-session.close()
+    def fetch_tle_latest(self, ordinal: int = 1, norad_filter: str = ">0", where: Optional[str] = None, limit: Optional[int] = None) -> pd.DataFrame:
+        parts = [
+            "/basicspacedata/query/class/tle_latest",
+            f"ORDINAL/{int(ordinal)}",
+            f"NORAD_CAT_ID/{norad_filter}",
+        ]
+        if where:
+            parts.append(where)
+        if limit is not None:
+            parts.append(f"limit/{int(limit)}")
+        parts.append("format/json")
+        path = "/".join(parts)
+        data = self._query(path).json()
+        return pd.DataFrame(data)
+
+    def fetch_decay(self, epoch_since: str = "now-5 years", where: Optional[str] = None, limit: Optional[int] = None) -> pd.DataFrame:
+        # epoch_since uses Space-Track time math format, e.g., now-5%20years
+        epoch_since_enc = epoch_since.replace(' ', '%20')
+        parts = [
+            "/basicspacedata/query/class/decay",
+            # Use DECAY predicate (not EPOCH). Encode '>' as %3E
+            f"DECAY/%3E" + epoch_since_enc,
+        ]
+        if where:
+            parts.append(where)
+        if limit is not None:
+            parts.append(f"limit/{int(limit)}")
+        parts.append("format/json")
+        path = "/".join(parts)
+        data = self._query(path).json()
+        return pd.DataFrame(data)
+
+    def fetch_cdm_public(self, created_since: str = "now-30 days", where: Optional[str] = None, limit: Optional[int] = None) -> pd.DataFrame:
+        created_since_enc = created_since.replace(' days', '')
+        parts = [
+            "/basicspacedata/query/class/cdm_public",
+            f"CREATED/>" + created_since_enc,
+        ]
+        if where:
+            parts.append(where)
+        if limit is not None:
+            parts.append(f"limit/{int(limit)}")
+        parts.append("format/json")
+        path = "/".join(parts)
+        data = self._query(path).json()
+        return pd.DataFrame(data)
+
+# Convenience function for context manager usage
+class space_track_client:
+    def __enter__(self) -> "SpaceTrackClient":
+        self.client = SpaceTrackClient()
+        return self.client
+    def __exit__(self, exc_type, exc, tb):
+        self.client.close()
+        return False
+
+if __name__ == "__main__":
+    # Minimal demo: try to fetch a few rows from SATCAT if credentials are set.
+    try:
+        with space_track_client() as st:
+            df = st.fetch_satcat(limit=5)
+            print("SATCAT sample:")
+            print(df.head())
+    except SpaceTrackAuthError as e:
+        print("Space-Track credentials not set or login failed:", e)
