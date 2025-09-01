@@ -1,5 +1,3 @@
-# Plot 3D orbit from TLE data
-
 import numpy as np
 
 from sgp4 import api

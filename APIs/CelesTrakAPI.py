@@ -11,13 +11,11 @@ Outputs EDA-friendly DataFrame with columns: group, name, line1, line2.
 
 BASE_URL = "https://celestrak.org/NORAD/elements/gp.php"
 DEFAULT_DEBRIS_GROUPS = [
-    # Major debris clouds
     "iridium-33-debris",
     "cosmos-2251-debris",
     "fengyun-1c-debris",
-    # Other historical breakups
-    "cosmos-1408-debris",  # 2021 ASAT event
-    "2012-044-debris",     # Breeze-M breakup
+    "cosmos-1408-debris",
+    "2012-044-debris",
 ]
 
 
@@ -40,7 +38,6 @@ def parse_tle_text(tle_text: str, group: str) -> List[Tuple[str, str, str, str]]
             records.append((group, name, line1, line2))
             i += 3
         else:
-            # If misaligned, try to advance by one line
             i += 1
     return records
 
@@ -62,15 +59,8 @@ def save_tles(df: pd.DataFrame, out_dir: str = "extracted_tles", basename: str =
     # Save combined CSV
     csv_path = os.path.join(out_dir, f"{basename}.csv")
     df.to_csv(csv_path, index=False)
-    # Save per-group TLE text files (optional, helpful for tools expecting TLE format)
     for group, gdf in df.groupby("group"):
         txt_path = os.path.join(out_dir, f"{basename}_{group}.tle")
         with open(txt_path, "w") as f:
             for _, row in gdf.iterrows():
                 f.write(f"{row['name']}\n{row['line1']}\n{row['line2']}\n")
-
-
-if __name__ == "__main__":
-    df = fetch_debris_groups()
-    print(df.head())
-    save_tles(df)

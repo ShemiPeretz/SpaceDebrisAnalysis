@@ -2,7 +2,6 @@ import re
 from typing import Optional, Tuple
 import math
 
-# Earth gravitational parameter (km^3/s^2) and mean radius (km)
 MU_EARTH_KM3_S2 = 398600.4418
 R_EARTH_KM = 6378.137
 

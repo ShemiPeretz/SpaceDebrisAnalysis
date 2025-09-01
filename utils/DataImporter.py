@@ -1,8 +1,6 @@
-import os
 import pandas as pd
 from pathlib import Path
 
-# Local imports
 from APIs.CelesTrakAPI import fetch_debris_groups as ct_fetch, save_tles as ct_save
 from APIs.SpaceTrackAPI import SpaceTrackClient, SpaceTrackAuthError
 
@@ -25,7 +23,7 @@ def fetch_celestrak_debris():
 
 
 def fetch_spacetrack_sets():
-    print("Fetching Space-Track datasets (if credentials available)...")
+    print("Fetching Space-Track datasets...")
     try:
         st = SpaceTrackClient()
     except SpaceTrackAuthError as e:
@@ -33,19 +31,6 @@ def fetch_spacetrack_sets():
         return
 
     try:
-        # # SATCAT metadata (limit for quick EDA start)
-        # satcat = st.fetch_satcat(limit=20000)
-        # save_df(satcat, "spacetrack_satcat.csv")
-        #
-        # # Latest TLEs snapshot (ordinal 1). Keep limit moderate to avoid huge downloads.
-        # tles = st.fetch_tle_latest(ordinal=1, norad_filter=">0", limit=20000)
-        # save_df(tles, "spacetrack_tle_latest.csv")
-        #
-        # # Decay / reentry for last 5 years
-        # decay = st.fetch_decay(epoch_since="now-5 years")
-        # save_df(decay, "spacetrack_decay_5y.csv")
-
-        # Public CDMs (last 30 days). Often useful for conjunction statistics.
         cdm = st.fetch_cdm_public(created_since="now-100 days")
         save_df(cdm, "spacetrack_cdm_public_100d.csv")
     finally:
@@ -53,13 +38,3 @@ def fetch_spacetrack_sets():
             st.close()
         except Exception:
             pass
-
-
-def main():
-    fetch_celestrak_debris()
-    fetch_spacetrack_sets()
-    print("Data fetch complete.")
-
-
-if __name__ == "__main__":
-    main()
