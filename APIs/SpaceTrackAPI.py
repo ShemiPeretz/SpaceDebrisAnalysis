@@ -102,6 +102,62 @@ class SpaceTrackClient:
         data = self._query(path).json()
         return pd.DataFrame(data)
 
+    def fetch_tle_by_id(self, norad_cat_id: int, orderby: str = "EPOCH desc", limit: Optional[int] = None) -> pd.DataFrame:
+        orderby_enc = orderby.replace(' ', '%20')
+        parts = [
+            "/basicspacedata/query/class/tle",
+            f"NORAD_CAT_ID/{int(norad_cat_id)}",
+            f"orderby/{orderby_enc}",
+        ]
+        if limit is not None:
+            parts.append(f"limit/{int(limit)}")
+        parts.append("format/json")
+        path = "/".join(parts)
+        data = self._query(path).json()
+        df = pd.DataFrame(data)
+        df.to_csv(f"..\\DATA\\tles_{norad_cat_id}.csv", index=False)
+        return df
+
+    def fetch_tle_by_id_and_epoch(self, norad_cat_id: int, epoch_start: Optional[str] = None, epoch_end: Optional[str] = None, orderby: str = "EPOCH desc", limit: Optional[int] = None) -> pd.DataFrame:
+        """
+        Fetches historical TLEs for a specific NORAD_CAT_ID, with optional epoch filtering.
+
+        Args:
+            norad_cat_id: The NORAD Catalog ID of the satellite.
+            epoch_start: Optional start date for epoch filter (e.g., "2025-08-01").
+            epoch_end: Optional end date for epoch filter (e.g., "2025-08-31").
+            orderby: The field to sort by (e.g., "EPOCH desc").
+            limit: The maximum number of records to return.
+
+        Returns:
+            A pandas DataFrame containing the TLE data.
+        """
+        orderby_enc = orderby.replace(' ', '%20')
+        parts = [
+            "/basicspacedata/query/class/tle",
+            f"NORAD_CAT_ID/{int(norad_cat_id)}",
+        ]
+
+        # Add epoch filter if provided, using Space-Track's range format.
+        if epoch_start and epoch_end:
+            parts.append(f"EPOCH/{epoch_start}--{epoch_end}")
+        elif epoch_start:
+            parts.append(f"EPOCH/>{epoch_start}")
+        elif epoch_end:
+            parts.append(f"EPOCH/<{epoch_end}")
+
+        parts.append(f"orderby/{orderby_enc}")
+
+        if limit is not None:
+            parts.append(f"limit/{int(limit)}")
+
+        parts.append("format/json")
+        path = "/".join(parts)
+        data = self._query(path).json()
+        df = pd.DataFrame(data)
+        df.to_csv(f"tles_{norad_cat_id}_epoch_{epoch_start}.csv", index=False)
+        return df
+
 # Convenience function for context manager usage
 class space_track_client:
     def __enter__(self) -> "SpaceTrackClient":
@@ -115,8 +171,8 @@ if __name__ == "__main__":
     # Minimal demo: try to fetch a few rows from SATCAT if credentials are set.
     try:
         with space_track_client() as st:
-            df = st.fetch_satcat(limit=5)
-            print("SATCAT sample:")
+            df = st.fetch_tle_by_id_and_epoch(58074, "2025-08-16", "2025-08-18")
+            print("tle sample:")
             print(df.head())
     except SpaceTrackAuthError as e:
         print("Space-Track credentials not set or login failed:", e)

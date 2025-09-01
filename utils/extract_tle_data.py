@@ -56,24 +56,20 @@ def fetch_tle():
         else:
             print(f"Failed to fetch TLEs: {tle_resp.status_code}")
 
-def main():
-    all_tles = []
-    for filename in os.listdir(TLE_DIR):
-        if filename.endswith('.txt'):
-            file_path = os.path.join(TLE_DIR, filename)
-            tle_sets = extract_tle_sets(file_path)
-            print(f"{filename}: {len(tle_sets)} TLE sets found.")
-            # Save extracted TLEs to a new file
-            output_path = os.path.join(OUTPUT_DIR, filename.replace('.txt', '_tles.txt'))
-            with open(output_path, 'w') as out:
-                for name, line1, line2 in tle_sets:
-                    out.write(f"{name}\n{line1}\n{line2}\n\n")
-                    all_tles.append({'file': filename, 'name': name, 'line1': line1, 'line2': line2})
-    # Create DataFrame and save as CSV
-    df = pd.DataFrame(all_tles, columns=['file', 'name', 'line1', 'line2'])
-    print(df.head())
-    df.to_csv(CSV_OUTPUT, index=False)
-    print(f"Saved all TLEs to {CSV_OUTPUT}")
-
-if __name__ == '__main__':
-    main() 
+all_tles = []
+for filename in os.listdir(TLE_DIR):
+    if filename.endswith('.txt'):
+        file_path = os.path.join(TLE_DIR, filename)
+        tle_sets = extract_tle_sets(file_path)
+        print(f"{filename}: {len(tle_sets)} TLE sets found.")
+        # Save extracted TLEs to a new file
+        output_path = os.path.join(OUTPUT_DIR, filename.replace('.txt', '_tles.txt'))
+        with open(output_path, 'w') as out:
+            for name, line1, line2 in tle_sets:
+                out.write(f"{name}\n{line1}\n{line2}\n\n")
+                all_tles.append({'file': filename, 'name': name, 'line1': line1, 'line2': line2})
+# Create DataFrame and save as CSV
+df = pd.DataFrame(all_tles, columns=['file', 'name', 'line1', 'line2'])
+print(df.head())
+df.to_csv(CSV_OUTPUT, index=False)
+print(f"Saved all TLEs to {CSV_OUTPUT}")

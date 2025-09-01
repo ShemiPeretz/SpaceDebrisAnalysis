@@ -6,7 +6,7 @@ from pathlib import Path
 from APIs.CelesTrakAPI import fetch_debris_groups as ct_fetch, save_tles as ct_save
 from APIs.SpaceTrackAPI import SpaceTrackClient, SpaceTrackAuthError
 
-DATA_DIR = Path("DATA")
+DATA_DIR = Path("../DATA")
 DATA_DIR.mkdir(exist_ok=True)
 
 
@@ -56,7 +56,7 @@ def fetch_spacetrack_sets():
 
 
 def main():
-    # fetch_celestrak_debris()
+    fetch_celestrak_debris()
     fetch_spacetrack_sets()
     print("Data fetch complete.")
 
